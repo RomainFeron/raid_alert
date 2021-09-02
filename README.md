@@ -35,7 +35,8 @@ Raid alert checks the server's website every 30 seconds and automatically sends 
 
 ### Commands
 
-**!alive**: lists all bosses currently alive
+**!alive**: list all bosses currently alive
+**!updatetime <n>**: set update time to *n* seconds (default is 30)
 
 ## Setup on discord server
 
