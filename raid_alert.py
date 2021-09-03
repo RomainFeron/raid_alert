@@ -11,7 +11,7 @@ BOSS_INFO_FILE_PATH = 'config/boss_info.json'
 global REFRESH_TIME
 REFRESH_TIME = 30
 global HIGHLIGHT_RANGE
-HIGHLIGHT_RANGE = [None, None]
+HIGHLIGHT_RANGE = [0, 99]
 
 # Discord info stored in a .env file
 load_dotenv()
@@ -55,7 +55,10 @@ async def boss_check():
     # Generate a message for each boss with a status change
     for boss in boss_checker.updates:
         # Embedded instead of standard message to include a clickable link to the map
-        msg = discord.Embed()
+        if boss.level in HIGHLIGHT_RANGE:
+            msg = discord.Embed(color=0x2ECC71)
+        else:
+            msg = discord.Embed()
         msg.description = ''
         if boss.has_died:
             lifespan = boss.lifespan if boss.lifespan else 'unknown'
@@ -82,10 +85,9 @@ async def alive(ctx):
     msg = discord.Embed()
     msg.description = ''
     for boss in alive_bosses:
-        drops = "/".join(BOSS_INFO[boss.name]["drops"])
-        if len(drops) == 0:
-            drops = 'No drops'
-        msg.description += (f'    - {boss.name} spawned at {boss.spawn_time.strftime("%H:%M")}'
+        drops = "/".join(BOSS_INFO[boss.name]["drops"]) if len(BOSS_INFO[boss.name]["drops"]) > 0 else 'No drops'
+        spawn_time = boss.spawn_time.strftime("%H:%M") if boss.spawn_time is not None else 'unknown'
+        msg.description += (f'    - {boss.name} spawned at {spawn_time}'
                             f' **[lvl {boss.level}]**'
                             f' **[{drops}]**'
                             f' **[{BOSS_INFO[boss.name]["adds"]} adds]**'
@@ -109,19 +111,18 @@ async def updatetime(ctx, time):
         return
 
 
-# @bot.command()
-# async def levelrange(ctx, min_level, max_level):
-#     '''
-#     !levelrange command highlight 
-#     '''
-#     try:
-#         global REFRESH_TIME
-#         REFRESH_TIME = int(time)
-#         boss_check.change_interval(seconds=REFRESH_TIME)
-#         await ctx.channel.send(f'Update time set to **{REFRESH_TIME}** seconds')
-#     except ValueError:
-#         await ctx.channel.send(f'Invalid value <{time}> for update time (expected: number of seconds)')
-#         return
+@bot.command()
+async def levelrange(ctx, min_level, max_level):
+    '''
+    !levelrange command highlights messages for bosses within a specified level range
+    '''
+    try:
+        global HIGHLIGHT_RANGE
+        HIGHLIGHT_RANGE = [int(min_level), int(max_level)]
+        await ctx.channel.send(f'Highlight level range set to **{min_level}-{max_level}**')
+    except ValueError:
+        await ctx.channel.send(f'Invalid value **{min_level} {max_level}** for update time (expected: *min-level max-level*)')
+        return
 
 
 @bot.event
