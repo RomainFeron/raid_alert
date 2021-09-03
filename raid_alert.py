@@ -37,6 +37,20 @@ if not os.path.isfile(BOSS_INFO_FILE_PATH):
 BOSS_INFO = load_json_to_dict(BOSS_INFO_FILE_PATH)
 
 
+def format_boss_message(boss):
+    '''
+    '''
+    drops = "/".join(BOSS_INFO[boss.name]["drops"]) if len(BOSS_INFO[boss.name]["drops"]) > 0 else 'No drops'
+    spawn_time = boss.spawn_time.strftime("%H:%M") if boss.spawn_time is not None else 'unknown'
+    adds = f'{BOSS_INFO[boss.name]["adds"][0]}-{BOSS_INFO[boss.name]["adds"][0]}' if BOSS_INFO[boss.name]["adds"] == [0, 0] else 'no'
+    msg_string = (f'{boss.name} spawned at {spawn_time}'
+                  f' **[lvl {boss.level}]**'
+                  f' **[{drops}]**'
+                  f' **[{adds} adds]**'
+                  f' **[[map]({BOSS_INFO[boss.name]["map_url"]})]**')
+    return msg_string
+
+
 @tasks.loop(seconds=REFRESH_TIME)
 async def boss_check():
     '''
@@ -55,24 +69,17 @@ async def boss_check():
     # Generate a message for each boss with a status change
     for boss in boss_checker.updates:
         # Embedded instead of standard message to include a clickable link to the map
-        if boss.level in HIGHLIGHT_RANGE:
+        if int(boss.level) in HIGHLIGHT_RANGE:
             msg = discord.Embed(color=0x2ECC71)
         else:
             msg = discord.Embed()
         msg.description = ''
         if boss.has_died:
-            lifespan = boss.lifespan if boss.lifespan else 'unknown'
+            lifespan = boss.lifespan if boss.lifespan else 'unknown time'
             msg = f'{boss.name} (lvl {boss.level}) was killed at {boss.time_of_death.strftime("%H:%M")} (lifespan: {lifespan})'
             await boss_kill_channel.send(msg)
         elif boss.has_spawned:
-            drops = "/".join(BOSS_INFO[boss.name]["drops"])
-            if len(drops) == 0:
-                drops = 'No drops'
-            msg.description = (f'{boss.name} spawned at {boss.spawn_time.strftime("%H:%M")}'
-                               f' **[lvl {boss.level}]**'
-                               f' **[{drops}]**'
-                               f' **[{BOSS_INFO[boss.name]["adds"]} adds]**'
-                               f' **[[map]({BOSS_INFO[boss.name]["map_url"]})]**')
+            msg.description = format_boss_message(boss)
             await boss_spawn_channel.send(embed=msg)
 
 
@@ -85,13 +92,7 @@ async def alive(ctx):
     msg = discord.Embed()
     msg.description = ''
     for boss in alive_bosses:
-        drops = "/".join(BOSS_INFO[boss.name]["drops"]) if len(BOSS_INFO[boss.name]["drops"]) > 0 else 'No drops'
-        spawn_time = boss.spawn_time.strftime("%H:%M") if boss.spawn_time is not None else 'unknown'
-        msg.description += (f'    - {boss.name} spawned at {spawn_time}'
-                            f' **[lvl {boss.level}]**'
-                            f' **[{drops}]**'
-                            f' **[{BOSS_INFO[boss.name]["adds"]} adds]**'
-                            f' **[[map]({BOSS_INFO[boss.name]["map_url"]})]**\n')
+        msg.description += format_boss_message(boss)
     msg.set_thumbnail(url=discord.Embed.Empty)
     await ctx.channel.send(embed=msg)
 
