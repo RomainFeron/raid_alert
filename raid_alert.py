@@ -134,6 +134,12 @@ async def on_connect():
 @bot.event
 async def on_ready():
     logging.info('Connection successful')
+    server = discord.utils.get(bot.guilds, name=SERVER)
+    boss_kill_channel = discord.utils.get(server.channels, name='boss-kill')
+    boss_spawn_channel = discord.utils.get(server.channels, name='boss-spawn')
+    msg = 'Raid alerts **ON**'
+    await boss_kill_channel.send(msg)
+    await boss_spawn_channel.send(msg)
     boss_check.start()
 
 
