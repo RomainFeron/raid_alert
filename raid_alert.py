@@ -11,7 +11,7 @@ BOSS_INFO_FILE_PATH = 'config/boss_info.json'
 global REFRESH_TIME
 REFRESH_TIME = 30
 global HIGHLIGHT_RANGE
-HIGHLIGHT_RANGE = [0, 99]
+HIGHLIGHT_RANGE = range(0, 99)
 
 # Discord info stored in a .env file
 load_dotenv()
@@ -41,8 +41,8 @@ def format_boss_message(boss):
     '''
     '''
     drops = "/".join(BOSS_INFO[boss.name]["drops"]) if len(BOSS_INFO[boss.name]["drops"]) > 0 else 'No drops'
-    spawn_time = boss.spawn_time.strftime("%H:%M") if boss.spawn_time is not None else 'unknown'
-    adds = f'{BOSS_INFO[boss.name]["adds"][0]}-{BOSS_INFO[boss.name]["adds"][0]}' if BOSS_INFO[boss.name]["adds"] == [0, 0] else 'no'
+    spawn_time = boss.spawn_time.strftime("%H:%M") if boss.spawn_time is not None else 'unknown time'
+    adds = f'{BOSS_INFO[boss.name]["adds"][0]}-{BOSS_INFO[boss.name]["adds"][1]}' if BOSS_INFO[boss.name]["adds"] != [0, 0] else 'no'
     msg_string = (f'{boss.name} spawned at {spawn_time}'
                   f' **[lvl {boss.level}]**'
                   f' **[{drops}]**'
@@ -92,7 +92,7 @@ async def alive(ctx):
     msg = discord.Embed()
     msg.description = ''
     for boss in alive_bosses:
-        msg.description += format_boss_message(boss)
+        msg.description += '  - ' + format_boss_message(boss) + '\n'
     msg.set_thumbnail(url=discord.Embed.Empty)
     await ctx.channel.send(embed=msg)
 
@@ -119,7 +119,7 @@ async def levelrange(ctx, min_level, max_level):
     '''
     try:
         global HIGHLIGHT_RANGE
-        HIGHLIGHT_RANGE = [int(min_level), int(max_level)]
+        HIGHLIGHT_RANGE = range(int(min_level), int(max_level))
         await ctx.channel.send(f'Highlight level range set to **{min_level}-{max_level}**')
     except ValueError:
         await ctx.channel.send(f'Invalid value **{min_level} {max_level}** for update time (expected: *min-level max-level*)')
