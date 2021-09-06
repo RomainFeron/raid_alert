@@ -76,7 +76,8 @@ def check_boss(boss, level, good_drops_table=GOOD_DROPS_TABLE, boss_fix=BOSS_FIX
         for entry in entries:
             entry = entry.text.upper()
             for good_drop in good_drops_table:
-                if good_drop in entry:
+                good_drop_regex = re.search(r'^' + re.escape(good_drop), entry)
+                if good_drop_regex:
                     boss_info['drops'].append(GOOD_DROPS_TABLE[good_drop])
     return boss_info
 
