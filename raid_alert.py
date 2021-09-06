@@ -118,7 +118,7 @@ async def alive(ctx):
     msg.description = ''
     for boss in alive_bosses:
         msg.description += '  - ' + format_boss_message(boss) + '\n'
-    await msg.set_thumbnail(url=discord.Embed.Empty)
+    msg.set_thumbnail(url=discord.Embed.Empty)
     await ctx.channel.send(embed=msg)
 
 
@@ -129,7 +129,7 @@ async def updatetime(ctx, time):
     '''
     try:
         bot.refresh_time = int(time)
-        await boss_check.change_interval(seconds=bot.refresh_time)
+        boss_check.change_interval(seconds=bot.refresh_time)
         await ctx.channel.send(f'Update time set to **{bot.refresh_time}** seconds')
     except ValueError:
         await ctx.channel.send(f'Invalid value **{time}** for update time; expected value is number of seconds.')
@@ -143,8 +143,8 @@ async def stop(ctx):
     '''
     if bot.alert_status == 'ON':
         await ctx.channel.send('Alerts stopped')
-        await boss_check.cancel()
         bot.alert_status = 'OFF'
+        boss_check.cancel()
     else:
         await ctx.channel.send('Alerts were already stopped')
 
@@ -160,8 +160,8 @@ async def start(ctx):
         wait_count += 1
     if bot.alert_status == 'OFF':
         await ctx.channel.send('Alerts started')
-        await boss_check.start()
         bot.alert_status = 'ON'
+        boss_check.start()
     else:
         await ctx.channel.send('Alerts were already started')
 
@@ -216,7 +216,7 @@ async def on_ready():
     msg = 'Raid alerts **ON**'
     await boss_kill_channel.send(msg)
     await boss_spawn_channel.send(msg)
-    await boss_check.start()
+    boss_check.start()
 
 
 @bot.event
