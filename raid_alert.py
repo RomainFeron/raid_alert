@@ -47,12 +47,13 @@ def format_boss_message(boss):
     '''
     drops = "/".join(BOSS_INFO[boss.name]["drops"]) if len(BOSS_INFO[boss.name]["drops"]) > 0 else 'No drops'
     spawn_time = boss.spawn_time.strftime("%H:%M") if boss.spawn_time is not None else 'unknown time'
+    time_dead = boss.time_dead if boss.time_dead else 'unknown'
     adds = f'{BOSS_INFO[boss.name]["adds"][0]}-{BOSS_INFO[boss.name]["adds"][1]}' if BOSS_INFO[boss.name]["adds"] != [0, 0] else 'no'
     msg_string = (f'**[lvl {boss.level}]** {boss.name} spawned at {spawn_time}'
                   f' **[{drops}]**'
                   f' **[{adds} adds]**'
                   f' **[[map]({BOSS_INFO[boss.name]["map_url"]})]**'
-                  f'  (time dead: {boss.time_dead}')
+                  f'  (time dead: {time_dead})')
     return msg_string
 
 
