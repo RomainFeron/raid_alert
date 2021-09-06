@@ -1,6 +1,7 @@
 import discord
 import logging
 import os
+import time
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 from raid_alert import BossChecker, load_json_to_dict, get_boss_info
@@ -8,10 +9,10 @@ from raid_alert import BossChecker, load_json_to_dict, get_boss_info
 # General config
 URL = 'https://l2unity.net/data/x10/boss'
 BOSS_INFO_FILE_PATH = 'config/boss_info.json'
-global REFRESH_TIME
 REFRESH_TIME = 30
-global HIGHLIGHT_RANGE
-HIGHLIGHT_RANGE = range(0, 99)
+HIGHLIGHT_RANGE = [0, 99]
+FILTER_RANGE = [0, 99]
+ALERT_STATUS = 'ON'
 
 # Discord info stored in a .env file
 load_dotenv()
@@ -28,6 +29,10 @@ boss_checker = BossChecker(url=URL)
 
 # Initialize discord command bot instance (commands will start with !)
 bot = commands.Bot('!')
+bot.refresh_time = REFRESH_TIME
+bot.highlight_range = HIGHLIGHT_RANGE
+bot.filter_range = FILTER_RANGE
+bot.alert_status = ALERT_STATUS
 
 # Generate json file with boss info if it does not exist already
 if not os.path.isfile(BOSS_INFO_FILE_PATH):
@@ -46,7 +51,8 @@ def format_boss_message(boss):
     msg_string = (f'**[lvl {boss.level}]** {boss.name} spawned at {spawn_time}'
                   f' **[{drops}]**'
                   f' **[{adds} adds]**'
-                  f' **[[map]({BOSS_INFO[boss.name]["map_url"]})]**')
+                  f' **[[map]({BOSS_INFO[boss.name]["map_url"]})]**'
+                  f'  (time dead: {boss.time_dead}')
     return msg_string
 
 
@@ -59,6 +65,7 @@ async def boss_check():
     server = discord.utils.get(bot.guilds, name=SERVER)
     boss_kill_channel = discord.utils.get(server.channels, name='boss-kill')
     boss_spawn_channel = discord.utils.get(server.channels, name='boss-spawn')
+    # Define filter and highlight ranges
     # Update boss status
     boss_checker.update()
     if len(boss_checker.updates) == 0:
@@ -68,7 +75,9 @@ async def boss_check():
     # Generate a message for each boss with a status change
     for boss in boss_checker.updates:
         # Embedded instead of standard message to include a clickable link to the map
-        if int(boss.level) in HIGHLIGHT_RANGE:
+        if int(boss.level) not in range(bot.filter_range[0], bot.filter_range[-1] + 1):
+            continue
+        if int(boss.level) in range(bot.highlight_range[0], bot.highlight_range[-1] + 1):
             msg = discord.Embed(color=0x2ECC71)
         else:
             msg = discord.Embed()
@@ -83,6 +92,22 @@ async def boss_check():
 
 
 @bot.command()
+async def commands(ctx):
+    '''
+    !commands command lists all available commands
+    '''
+    msg = 'Available commands:\n'
+    msg += '**!alive**: list all bosses alive at the moment\n'
+    msg += '**!start**: start the automated boss status updated\n'
+    msg += '**!stop**: stop the automated boss status updated\n'
+    msg += f'**!updatetime <n>** : change automated boss status check time to *n* seconds (current: {bot.refresh_time})\n'
+    msg += f'**!setrange <min> <max>** : toggle alerts only for bosses between levels *min* and *max* (current: {bot.filter_range[0]}-{bot.filter_range[-1]})\n'
+    msg += f'**!highlight <min> <max>** : highlight messages for bosses between levels *min* and *max* (current: {bot.highlight_range[0]}-{bot.highlight_range[-1]})\n'
+    msg += f'**!config** : display current configuration\n'
+    await ctx.channel.send(msg)
+
+
+@bot.command()
 async def alive(ctx):
     '''
     !alive command returns the list of boss that are alive at the moment
@@ -92,7 +117,7 @@ async def alive(ctx):
     msg.description = ''
     for boss in alive_bosses:
         msg.description += '  - ' + format_boss_message(boss) + '\n'
-    msg.set_thumbnail(url=discord.Embed.Empty)
+    await msg.set_thumbnail(url=discord.Embed.Empty)
     await ctx.channel.send(embed=msg)
 
 
@@ -102,27 +127,78 @@ async def updatetime(ctx, time):
     !updatetime command changes boss status update time (default is 30s)
     '''
     try:
-        global REFRESH_TIME
-        REFRESH_TIME = int(time)
-        boss_check.change_interval(seconds=REFRESH_TIME)
-        await ctx.channel.send(f'Update time set to **{REFRESH_TIME}** seconds')
+        bot.refresh_time = int(time)
+        await boss_check.change_interval(seconds=bot.refresh_time)
+        await ctx.channel.send(f'Update time set to **{bot.refresh_time}** seconds')
     except ValueError:
         await ctx.channel.send(f'Invalid value **{time}** for update time; expected value is number of seconds.')
         return
 
 
 @bot.command()
-async def levelrange(ctx, min_level, max_level):
+async def stop(ctx):
     '''
-    !levelrange command highlights messages for bosses within a specified level range
+    !stop command stops automated boss status update
+    '''
+    if bot.alert_status == 'ON':
+        await ctx.channel.send('Alerts stopped')
+        await boss_check.cancel()
+        bot.alert_status = 'OFF'
+    else:
+        await ctx.channel.send('Alerts were already stopped')
+
+
+@bot.command()
+async def start(ctx):
+    '''
+    !start command starts automated boss status update
+    '''
+    wait_count = 0
+    while boss_check.is_running() and wait_count < 10:
+        time.sleep(1)
+        wait_count += 1
+    if bot.alert_status == 'OFF':
+        await ctx.channel.send('Alerts started')
+        await boss_check.start()
+        bot.alert_status = 'ON'
+    else:
+        await ctx.channel.send('Alerts were already started')
+
+
+@bot.command()
+async def highlight(ctx, min_level, max_level):
+    '''
+    !highlight command highlights messages for bosses within a specified level range
     '''
     try:
-        global HIGHLIGHT_RANGE
-        HIGHLIGHT_RANGE = range(int(min_level), int(max_level))
+        bot.highlight_range = [int(min_level), int(max_level)]
         await ctx.channel.send(f'Highlight level range set to **{min_level}-{max_level}**')
     except ValueError:
-        await ctx.channel.send(f'Invalid value **{min_level} {max_level}** for update time (expected: *min-level max-level*)')
-        return
+        await ctx.channel.send(f'Invalid value **{min_level} {max_level}** for highlight range (expected: *min-level max-level*)')
+
+
+@bot.command()
+async def setrange(ctx, min_level, max_level):
+    '''
+    !setrange command filters out messages for bosses outside of the specified level range
+    '''
+    try:
+        bot.filter_range = [int(min_level), int(max_level)]
+        await ctx.channel.send(f'Filter level range set to **{min_level}-{max_level}**')
+    except ValueError:
+        await ctx.channel.send(f'Invalid value **{min_level} {max_level}** for filter range (expected: *min-level max-level*)')
+
+
+@bot.command()
+async def config(ctx):
+    '''
+    !stop command stops automated boss status update
+    '''
+    msg = f' - Alerts: **{bot.alert_status}**\n'
+    msg += f' - Lvl filter range: **{bot.filter_range[0]} - {bot.filter_range[-1]}**\n'
+    msg += f' - Lvl highlight range: **{bot.highlight_range[0]} - {bot.highlight_range[-1]}**\n'
+    msg += f' - Update interval: **{bot.refresh_time}** seconds\n'
+    await ctx.channel.send(msg)
 
 
 @bot.event
@@ -139,7 +215,7 @@ async def on_ready():
     msg = 'Raid alerts **ON**'
     await boss_kill_channel.send(msg)
     await boss_spawn_channel.send(msg)
-    boss_check.start()
+    await boss_check.start()
 
 
 @bot.event
